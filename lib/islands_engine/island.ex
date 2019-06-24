@@ -48,8 +48,8 @@ defmodule IslandsEngine.Island do
   def guess(island, coordinate) do
     case MapSet.member?(island.coordinates, coordinate) do
       true ->
-        hit_coordinates = MapSet.put(island.hit_coordinate, coordinate)
-        {:hit, %{island | hit_coordinates: coordinate}}
+        hit_coordinates = MapSet.put(island.hit_coordinates, coordinate)
+        {:hit, %{island | hit_coordinates: hit_coordinates}}
       false -> :miss
     end
   end

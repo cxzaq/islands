@@ -27,7 +27,7 @@ defmodule IslandsEngine.Board do
     Enum.find_value(board, :miss, fn {key, island} ->
       case Island.guess(island, coordinate) do
         {:hit, island} -> {key, island}
-        :miss -> false
+        :miss          -> false
       end
     end)
   end
