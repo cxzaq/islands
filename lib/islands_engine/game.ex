@@ -1,13 +1,20 @@
 defmodule IslandsEngine.Game do
-  use GenServer
+  use GenServer, start: {__MODULE__, :start_link, []}, restart: :transient
   alias IslandsEngine.{Board, Coordinate, Island, Guesses, Rules}
 
   @players [:player1, :player2]
+  @timeout 60 * 60 * 24 * 1000
+
 
   def init(name) do
-    player1 = %{name: name, board: Board.new(), guesses: Guesses.new()}
-    player2 = %{name: nil, board: Board.new(), guesses: Guesses.new()}
-    {:ok, %{player1: player1, player2: player2, rules: %Rules{}}}
+    state_data =
+    case :ets.lookup(:game_state, name) do
+      [] -> fresh_state(name)
+      [{_key, state}] -> state
+    end
+
+    :ets.insert(:game_state, {name, state_data})
+    {:ok, state_data, @timeout}
   end
 
   def start_link(name) when is_binary(name), do:
@@ -34,7 +41,10 @@ defmodule IslandsEngine.Game do
   defp update_rules(state_data, rules), do:
     %{state_data | rules: rules}
 
-  defp reply_success(state_data, reply), do: {:reply, reply, state_data}
+  defp reply_success(state_data, reply) do
+    :ets.insert(:game_state, {state_data.player1.name, state_data})
+    {:reply, reply, state_data, @timeout}
+  end
 
   def position_island(game, player, key, row, col) when player in @players, do:
     GenServer.call(game, {:position_island, player, key, row, col})
@@ -124,25 +134,19 @@ defmodule IslandsEngine.Game do
       Guesses.add(guesses, hit_or_miss, coordinate)
     end)
   end
+  
+  def via_tuple(name), do: {:via, Registry, {Registry.Game, name}}
+  
+  def start_link(name) when is_binary(name), do:
+    GenServer.start_link(__MODULE__, name, name: via_tuple(name))
+  
+  def handle_info(:timeout, state_data) do
+    {:stop, {:shutdown, :timeout}, state_data}
+  end
 
-  # def handle_info(:first, state) do
-  #   IO.puts "The something something"
-  #   {:noreply, state}
-  # end
-  #
-  # def handle_call(:demo_call, _from, state) do
-  #   {:reply, state, state}
-  # end
-  #
-  # def handle_cast({:demo_cast, new_value}, state) do
-  #   {:noreply, Map.put(state, :test, new_value)}
-  # end
-  #
-  # def demo_call(game) do
-  #   GenServer.call(game, :demo_call)
-  # end
-  #
-  # def demo_cast(pid, new_value) do
-  #   GenServer.cast(pid, {:demo_cast, new_value})
-  # end
+  defp fresh_state(name) do
+    player1 = %{name: name, board: Board.new(), guesses: Guesses.new()}
+    player2 = %{name: nil, board: Board.new(), guesses: Guesses.new()}
+    %{player1: player1, player2: player2, rules: %Rules{}}
+  end
 end
